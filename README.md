@@ -62,7 +62,7 @@ To avoid issues with cookie popups, open Chromium and log into Kleinanzeigen, en
    python -m app.main
    ```
 4. The web UI will open automatically at `http://127.0.0.1:8000/`.
-5. For each image, select the image regions you desire, click `Record`, and talk about relevant details for the ad, then click `Stop`. Alternatively, you can also fill out the form by hand.
+5. For each image, select the image regions you desire, reorder as needed, then click `Record`, and talk about relevant details for the ad, then click `Stop`. Alternatively, you can also fill out the form by hand.
 6. Verify the form values are acceptable.
 7. Click `Submit & Next`. Repeat for all items.
 8. Click `Pending` and `Publish All Now`.
