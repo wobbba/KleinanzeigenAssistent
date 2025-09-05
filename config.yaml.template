@@ -1,0 +1,14 @@
+# config.yaml template for KleinanzeigenAssistent
+# Copy this file to config.yaml and adjust as needed
+
+# Host and port for the FastAPI server
+host: 127.0.0.1
+port: 8000
+
+# Path to the kleinanzeigen-bot executable
+klein_bin: <-- /path/to/kleinanzeigen_bot_executable -->
+klein_cfg: kleinanzeigen_config.yaml
+
+chromium_path: <-- /path/to/chromium_executable -->
+
+google_api_key: <-- INSERT GOOGLE API KEY HERE -->

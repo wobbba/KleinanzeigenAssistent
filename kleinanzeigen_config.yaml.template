@@ -1,0 +1,36 @@
+browser:
+  arguments:
+  - --user-data-dir=<-- INSERT CHROMIUM PROFILES DIRECTORY HERE -->
+  - --remote-debugging-port=9222
+  - --disable-dev-shm-usage
+  binary_location: null
+  extensions: []
+  use_private_window: false
+  user_data_dir: <-- INSERT CHROMIUM PROFILES DIRECTORY HERE -->
+  profile_name: Default
+ad_files:
+- ./.work/ads/**/ad_*.{json,yml,yaml}
+publishing:
+  delete_old_ads: AFTER_PUBLISH
+  delete_old_ads_by_title: true
+ad_defaults:
+  active: true
+  type: OFFER
+  description_prefix: ''
+  description_suffix: ''
+  price_type: NEGOTIABLE
+  shipping_type: SHIPPING
+  sell_directly: false
+  contact:
+    name: ''
+    street: ''
+    zipcode: ''
+    phone: ''
+  republication_interval: 7
+update_check:
+  enabled: true
+  channel: latest
+  interval: 7d
+login:
+  username: '<-- INSERT_USERNAME_HERE -->'
+  password: '<-- INSERT_PASSWORD_HERE -->'

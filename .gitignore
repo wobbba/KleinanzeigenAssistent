@@ -1,0 +1,6 @@
+.temp/
+.work/
+__pycache__/
+venv/
+kleinanzeigen_config.yaml
+config.yaml

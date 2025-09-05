@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Kleinanzeigen Assistent</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    :root { --bg:#0b0d10; --panel:#14181d; --muted:#77818f; --text:#e6edf3; --accent:#e8cb2d; --accent-2:#edd85e; --accent-text-color:#000; --danger:#ff6b6b; --ok:#27c93f; --card:#0f1317; --border:#232a33; }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial}
+    header{position:sticky;top:0;z-index:10;background:rgba(11,13,16,0.8);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);padding:12px 16px;display:grid;grid-template-columns:1fr auto;align-items:center;gap:16px}
+    header .title{font-weight:600}
+    header .meta{color:var(--muted)}
+    .controls{display:flex;gap:8px;align-items:center}
+    button{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer}
+    button:hover{border-color:var(--muted)}
+    #recordBtn.recording{background:var(--danger);border-color:var(--danger);color:#fff}
+    .btn-primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text-color)}
+    .pill{font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:999px}
+    main{padding:16px;display:grid;grid-template-columns:1fr 380px;gap:16px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(clamp(250px, 25vw, 400px), 1fr));gap:10px;align-content:start}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:6px;overflow:hidden;position:relative}
+    .imgwrap{position:relative;width:100%;padding-top:100%;background:#0b0f14}
+    .imgwrap img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0b0f14;user-select:none;-webkit-user-drag:none}
+    .check{display:none;position:absolute;top:8px;left:8px;z-index:2;background:rgba(0,0,0,0.5);padding:4px 6px;border-radius:8px;font-size:12px;color:#cfe3ff;border:1px solid var(--border)}
+    .selected{outline:4px solid var(--accent);outline-offset:-2px}
+    .overlay{position:absolute;inset:0;pointer-events:none}
+    .crop{position:absolute;border:2px solid var(--accent-2);background: color-mix(in srgb, var(--accent-2), transparent 85%);border-radius:4px}
+    aside{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px;position:sticky;top:60px;height:fit-content}
+    aside h3{margin:0 0 8px;font-size:15px}
+    .field{display:grid;gap:6px;margin-bottom:10px}
+    .field label{color:var(--muted);font-size:12px}
+    input[type="text"],input[type="number"],textarea,select{background:#0e1318;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;width:100%}
+    textarea{resize:vertical;min-height:170px}
+    .row{display:flex;gap:8px;align-items:center}
+    .muted{color:var(--muted);font-size:12px}
+    .spacer{flex:1}
+    .hr{height:1px;background:var(--border);margin:10px 0}
+    .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .d-none{display:none}
+    /* Modal */
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center}
+    .modal.open{display:flex}
+    .dialog{background:var(--panel);border:1px solid var(--border);border-radius:12px;max-width:720px;width:92%;padding:16px}
+    .dialog h3{margin:0 0 10px}
+    .list{max-height:40vh;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px}
+    .list .row{justify-content:space-between;border-bottom:1px dashed var(--border);padding:6px 0}
+    .list .row:last-child{border-bottom:0}
+    /* DnD */
+    .drag-handle {
+        position: absolute;
+        top: 5px;
+        right: 8px;
+        z-index: 3;
+        cursor: grab;
+        font-size: 30px;
+        user-select: none;
+    }
+    .card.drag-chosen{opacity:.85}
+    .card.drag-ghost{outline:2px dashed var(--accent);outline-offset:-2px}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+</head>
+<body>
+<header>
+  <div>
+    <div class="title" id="hdrTitle">Loading…</div>
+    <div class="meta"><span id="hdrIndex"></span> • <span id="hdrCount"></span> images</div>
+  </div>
+  <div class="controls">
+    <button id="prevBtn">Prev</button>
+    <button id="nextBtn">Next</button>
+    <div class="spacer"></div>
+    <button id="deleteBtn">Delete</button>
+    <div class="spacer"></div>
+    <div class="spacer"></div>
+    <button id="pendingBtn">Pending <span id="pendingCount" class="pill">0</span></button>
+    <div class="spacer"></div>
+    <span class="muted">Archive: <span id="archiveSize">0 B</span></span>
+    <button id="clearArchiveBtn">Clear</button>
+  </div>
+</header>
+
+<main>
+  <section><div id="grid" class="grid"></div></section>
+  <aside>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <h2 style="margin:0;">Details</h2>
+      <div class="row" style="gap:8px;align-items:center;">
+        <button id="recordBtn">● Record</button>
+        <span id="recStatus" class="pill muted">idle</span>
+      </div>
+    </div>
+    <div class="two">
+      <div class="field"><label>Type</label><select id="fType"><option>OFFER</option><option>WANTED</option></select></div>
+      <div class="field"><label>Price type</label><select id="fPriceType"><option>NEGOTIABLE</option><option>FIXED</option><option>GIVE_AWAY</option></select></div>
+    </div>
+    <div class="field"><label>Title</label><input id="fTitle" type="text"/></div>
+    <div class="field"><label>Description</label><textarea id="fDesc"></textarea></div>
+    <div class="field"><label>Category (name or id like 161/278)</label><input id="fCategory" type="text"/></div>
+    <div class="two">
+      <div class="field"><label>Price (€ integer)</label><input id="fPrice" type="number" step="1" min="0"/></div>
+      <div class="field"><label>Repub. interval (days)</label><input id="fRepInt" type="number" step="1" min="1" placeholder="7"/></div>
+    </div>
+    <div class="two">
+      <div class="field"><label>Shipping type</label><select id="fShipType"><option>SHIPPING</option><option>PICKUP</option><option>NOT_APPLICABLE</option></select></div>
+      <div class="field"><label>Shipping costs (€)</label><input id="fShipCosts" type="number" step="0.01" min="0"/></div>
+    </div>
+    <div class="field">
+      <label>Shipping options (one size)</label>
+      <div class="row" style="flex-wrap:wrap;gap:6px">
+        <label><input type="checkbox" class="shipOpt" value="DHL_2"> DHL_2</label>
+        <label><input type="checkbox" class="shipOpt" value="Hermes_Päckchen"> Hermes_Päckchen</label>
+        <label><input type="checkbox" class="shipOpt" value="Hermes_S"> Hermes_S</label>
+        <label><input type="checkbox" class="shipOpt" value="DHL_5"> DHL_5</label>
+        <label><input type="checkbox" class="shipOpt" value="Hermes_M"> Hermes_M</label>
+        <label><input type="checkbox" class="shipOpt" value="DHL_10"> DHL_10</label>
+        <label><input type="checkbox" class="shipOpt" value="DHL_20"> DHL_20</label>
+        <label><input type="checkbox" class="shipOpt" value="DHL_31,5"> DHL_31,5</label>
+        <label><input type="checkbox" class="shipOpt" value="Hermes_L"> Hermes_L</label>
+      </div>
+    </div>
+    <div class="row"><label><input id="fSellDirect" type="checkbox"> Sell directly (requires shipping options)</label></div>
+    <div class="hr d-none"></div>
+    <div class="field d-none"><label>Contact name</label><input id="fCName" type="text"/></div>
+    <div class="two d-none">
+      <div class="field"><label>Street</label><input id="fCStreet" type="text"/></div>
+      <div class="field"><label>Zipcode</label><input id="fCZip" type="text"/></div>
+    </div>
+    <div class="field d-none"><label>Phone</label><input id="fCPhone" type="text"/></div>
+    <div class="field d-none"><label>Special attributes (JSON)</label><textarea id="fSpecAttr" placeholder='{"haus_mieten.zimmer_d":3}'></textarea></div>
+    <div class="hr"></div>
+    <div class="row"><span class="muted">Selected: <span id="selCount">0</span></span><div class="spacer"></div><button id="clearSelBtn">Clear</button></div>
+    <div class="row" style="gap:8px;margin-top:10px"><button id="submitBtn" class="btn-primary">Submit & Next</button><button id="skipBtn">Skip</button><button id="resetDraftBtn">Reset Draft</button></div>
+  </aside>
+</main>
+
+<div id="modal" class="modal" role="dialog" aria-modal="true">
+  <div class="dialog">
+    <h3>Pending ads</h3>
+    <div id="pendingList" class="list"></div>
+    <div class="row" style="margin-top:10px">
+      <div class="spacer"></div>
+      <button id="closeModal">Close</button>
+      <button id="undoAllBtn">↶ Undo All</button>
+      <button id="publishAllBtn" class="btn-primary">Publish All Now</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const grid = document.getElementById('grid');
+  const hdrTitle = document.getElementById('hdrTitle');
+  const hdrIndex = document.getElementById('hdrIndex');
+  const hdrCount = document.getElementById('hdrCount');
+  const selCountEl = document.getElementById('selCount');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const submitBtn = document.getElementById('submitBtn');
+  const skipBtn = document.getElementById('skipBtn');
+  const clearSelBtn = document.getElementById('clearSelBtn');
+  const recordBtn = document.getElementById('recordBtn');
+  const recStatus = document.getElementById('recStatus');
+  const pendingBtn = document.getElementById('pendingBtn');
+  const pendingCount = document.getElementById('pendingCount');
+
+  const modal = document.getElementById('modal');
+  const closeModal = document.getElementById('closeModal');
+  const publishAllBtn = document.getElementById('publishAllBtn');
+  const pendingList = document.getElementById('pendingList');
+  const deleteBtn = document.getElementById('deleteBtn');
+  const clearArchiveBtn = document.getElementById('clearArchiveBtn');
+  const archiveSizeEl = document.getElementById('archiveSize');
+  const undoAllBtn = document.getElementById('undoAllBtn');
+
+  async function archiveInfo(){
+    try{
+      const r = await fetch('/api/archive/info'); const d = await r.json();
+      archiveSizeEl.textContent = d.human || ((d.bytes||0) + ' B');
+    } catch(_){ archiveSizeEl.textContent='?'; }
+  }
+
+  async function clearArchive(){
+    if(!confirm('Clear archive (ads + inputs)?')) return;
+    try{ await fetch('/api/archive/clear',{method:'POST'}); } catch(_){}
+    await archiveInfo(); await refreshPending(); await archiveInfo();
+  }
+
+  async function deleteCurrent(){
+    const it = items[current];
+    if(!it) return;
+    if(!confirm(`Archive "${it.name}"?`)) return;
+    try{ await fetch(`/api/items/${it.id}/delete_input`,{method:'POST'}); } catch(_){}
+    await loadItems(); await archiveInfo();
+  }
+
+  async function undoOne(dir){
+    try{
+      await fetch('/api/pending/undo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dir})});
+    } catch(_){}
+    await refreshPending(); await archiveInfo(); await loadItems(); await archiveInfo();
+  }
+
+  async function undoAll(){
+    undoAllBtn.disabled = true;
+    try{ await fetch('/api/pending/undo_all',{method:'POST'}); } catch(_){}
+    await refreshPending(); await archiveInfo(); await loadItems(); await archiveInfo();
+    undoAllBtn.disabled = false;
+  }
+
+  if (deleteBtn) deleteBtn.addEventListener('click', deleteCurrent);
+  if (clearArchiveBtn) clearArchiveBtn.addEventListener('click', clearArchive);
+  if (undoAllBtn) undoAllBtn.addEventListener('click', undoAll);
+
+
+  const fType = document.getElementById('fType');
+  let imageOrder = []; // Track the order of images
+  const fPriceType = document.getElementById('fPriceType');
+  const fTitle = document.getElementById('fTitle');
+  const fDesc = document.getElementById('fDesc');
+  const fCategory = document.getElementById('fCategory');
+  const fPrice = document.getElementById('fPrice');
+  const fRepInt = document.getElementById('fRepInt');
+  const fShipType = document.getElementById('fShipType');
+  const fShipCosts = document.getElementById('fShipCosts');
+  const fSellDirect = document.getElementById('fSellDirect');
+  const shipOptInputs = () => Array.from(document.querySelectorAll('.shipOpt'));
+  const fCName = document.getElementById('fCName');
+  const fCStreet = document.getElementById('fCStreet');
+  const fCZip = document.getElementById('fCZip');
+  const fCPhone = document.getElementById('fCPhone');
+  const fSpecAttr = document.getElementById('fSpecAttr');
+
+  let items = [];
+  let current = 0;
+  let currentImages = [];
+  const selections = new Map();
+  let sortable = null;
+  function updateOrderFromDom(){
+    imageOrder = Array.from(grid.querySelectorAll('.card')).map(c=>c.dataset.url);
+  }
+
+  // Right-click drag should not open context menu on the grid
+  //grid.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  function updateSelCount(){ selCountEl.textContent = String(selections.size); }
+  function clamp01(v){ return Math.max(0, Math.min(1, v)); }
+
+  function imageContentBox(imgEl){
+    const rect = imgEl.getBoundingClientRect();
+    const natW = imgEl.naturalWidth || 1;
+    const natH = imgEl.naturalHeight || 1;
+    const arNat = natW / natH;
+    const arBox = rect.width / rect.height;
+    let renderW, renderH, offX, offY;
+    if (arNat > arBox){ renderW = rect.width; renderH = rect.width / arNat; offX = 0; offY = (rect.height - renderH) / 2; }
+    else { renderH = rect.height; renderW = rect.height * arNat; offY = 0; offX = (rect.width - renderW) / 2; }
+    return {rect, offsetX: offX, offsetY: offY, renderWidth: renderW, renderHeight: renderH};
+  }
+
+  function pointToNormalized(imgEl, clientX, clientY){
+    const box = imageContentBox(imgEl);
+    const x = clientX - box.rect.left - box.offsetX;
+    const y = clientY - box.rect.top - box.offsetY;
+    const nx = clamp01(x / box.renderWidth);
+    const ny = clamp01(y / box.renderHeight);
+    return {nx, ny, box};
+  }
+
+  function renderGrid(){
+    grid.innerHTML = ''; selections.clear(); updateSelCount();
+    imageOrder.forEach((url, idx) => {
+      const card = document.createElement('div'); card.className = 'card'; card.dataset.url = url;
+      const check = document.createElement('div'); check.className = 'check'; check.textContent = 'Select'; card.appendChild(check);
+      const handle = document.createElement('div'); handle.className='drag-handle'; handle.textContent='↔️'; handle.title='Drag to reorder';
+      // prevent selection/cropping toggles when grabbing the handle
+      handle.addEventListener('mousedown', e=>{ e.stopPropagation(); });
+      handle.addEventListener('click', e=>{ e.preventDefault(); e.stopPropagation(); });
+      card.appendChild(handle);
+      const wrap = document.createElement('div'); wrap.className = 'imgwrap';
+      const img = document.createElement('img'); img.src = url; img.alt = `img-${idx}`;
+      const overlay = document.createElement('div'); overlay.className = 'overlay';
+      const crop = document.createElement('div'); crop.className = 'crop'; crop.style.display='none';
+      overlay.appendChild(crop); wrap.appendChild(img); wrap.appendChild(overlay); card.appendChild(wrap); grid.appendChild(card);
+
+      let isDown=false, start=null;
+      card.addEventListener('click', (e) => {
+        if (card.dataset.dragging==='1'){ card.dataset.dragging='0'; return; }
+        const selected = card.classList.toggle('selected');
+        check.textContent = selected ? 'Selected' : 'Select';
+        if (!selected){ selections.delete(url); crop.style.display='none'; }
+        else { if (!selections.get(url)){ selections.set(url, { crop: {x:0, y:0, w:1, h:1} }); crop.style.display='block'; crop.style.left='0%'; crop.style.top='0%'; crop.style.width='100%'; crop.style.height='100%'; } }
+        updateSelCount();
+      });
+      // Cropping only with left mouse button
+      img.addEventListener('mousedown',(e)=>{ if(e.button!==0) return; if(!card.classList.contains('selected')) return; isDown=true; card.dataset.dragging='0'; e.preventDefault();   
+        const p = pointToNormalized(img, e.clientX, e.clientY); start=p; crop.style.display='block';
+        crop.style.left=((p.box.offsetX + p.box.renderWidth * p.nx)/p.box.rect.width*100).toFixed(3)+'%';
+        crop.style.top =((p.box.offsetY + p.box.renderHeight * p.ny)/p.box.rect.height*100).toFixed(3)+'%';
+        crop.style.width='0%'; crop.style.height='0%';
+      });
+      window.addEventListener('mousemove',(e)=>{ if(!isDown) return; card.dataset.dragging='1';
+        const p = pointToNormalized(img, e.clientX, e.clientY);
+        const x0=start.nx,y0=start.ny,x1=p.nx,y1=p.ny; const leftN=Math.min(x0,x1),topN=Math.min(y0,y1); const wN=Math.abs(x1-x0),hN=Math.abs(y1-y0);
+        const leftPx=p.box.offsetX+p.box.renderWidth*leftN; const topPx=p.box.offsetY+p.box.renderHeight*topN; const wPx=p.box.renderWidth*wN; const hPx=p.box.renderHeight*hN;
+        crop.style.left=(leftPx/p.box.rect.width*100).toFixed(3)+'%'; crop.style.top=(topPx/p.box.rect.height*100).toFixed(3)+'%';
+        crop.style.width=(wPx/p.box.rect.width*100).toFixed(3)+'%'; crop.style.height=(hPx/p.box.rect.height*100).toFixed(3)+'%';
+      });
+      window.addEventListener('mouseup',(e)=>{ if(!isDown) return; isDown=false;
+        const p = pointToNormalized(img, e.clientX, e.clientY);
+        const x0=start.nx,y0=start.ny,x1=p.nx,y1=p.ny; const leftN=Math.min(x0,x1),topN=Math.min(y0,y1); const wN=Math.max(0.001,Math.abs(x1-x0)); const hN=Math.max(0.001,Math.abs(y1-y0));
+        selections.set(url, { crop:{x:leftN,y:topN,w:wN,h:hN} }); updateSelCount();
+      });
+    });
+
+    // Select all images by default
+    imageOrder.forEach((url, idx) => {
+      const card = grid.querySelector(`.card[data-url="${url}"]`);
+      const check = card.querySelector('.check');
+      const crop = card.querySelector('.crop');
+
+      card.classList.add('selected');
+      // Build selectionsArr in the order of imageOrder
+      const selectionsArr = imageOrder.filter(url => selections.has(url)).map(url => ({ url, crop: selections.get(url).crop }));
+      selections.set(url, { crop: {x:0, y:0, w:1, h:1} });
+      crop.style.display = 'block';
+      crop.style.left = '0%';
+      crop.style.top = '0%';
+      crop.style.width = '100%';
+      crop.style.height = '100%';
+    });
+    updateSelCount();
+
+    // (Re)bind Sortable on the grid for reliable drag/drop with animation
+    if (sortable) { try { sortable.destroy(); } catch(_){} }
+    sortable = new Sortable(grid, {
+      animation: 150,
+      handle: '.drag-handle',
+      draggable: '.card',
+      ghostClass: 'drag-ghost',
+      chosenClass: 'drag-chosen',
+      onSort: updateOrderFromDom,
+      onEnd: updateOrderFromDom
+    });
+  }
+
+  async function loadItems(){
+    const r = await fetch('/api/items'); const data = await r.json(); items = data.items || [];
+    if (!items.length){ hdrTitle.textContent='No items found'; hdrIndex.textContent='-'; hdrCount.textContent='0'; await refreshPending(); await archiveInfo(); maybePromptPublishAtEnd(); return; }
+    current=0; await loadItem(current); await refreshPending(); await archiveInfo();
+  }
+
+  async function loadItem(idx){
+    const it = items[idx];
+    const r = await fetch(`/api/items/${it.id}/images`); const data = await r.json();
+    currentImages = data.images || [];
+    imageOrder = [...currentImages];
+    hdrTitle.textContent = it.name; hdrIndex.textContent = `Item ${idx+1} of ${items.length}`; hdrCount.textContent = String(currentImages.length);
+    renderGrid(); resetDraftFields();
+  }
+
+  function resetDraftFields(){
+    fType.value='OFFER'; fPriceType.value='NEGOTIABLE'; fTitle.value=''; fDesc.value=''; fCategory.value='';
+    fPrice.value=''; fRepInt.value=''; fShipType.value='SHIPPING'; fShipCosts.value=''; fSellDirect.checked=false;
+    shipOptInputs().forEach(i=>i.checked=false);
+    fCName.value=''; fCStreet.value=''; fCZip.value=''; fCPhone.value='';
+    fSpecAttr.value='';
+  }
+
+  prevBtn.addEventListener('click', async ()=>{ if(current>0){ current-=1; await loadItem(current); }});
+  nextBtn.addEventListener('click', async ()=>{ if(current+1<items.length){ current+=1; await loadItem(current); }});
+
+  clearSelBtn.addEventListener('click', ()=>{ selections.clear(); updateSelCount(); document.querySelectorAll('.card').forEach(c=>{ c.classList.remove('selected'); const crop=c.querySelector('.crop'); if(crop) crop.style.display='none'; const check=c.querySelector('.check'); if(check) check.textContent='Select'; }); });
+
+  // Recording (unchanged minimal)
+  let mediaRecorder=null,audioChunks=[],recording=false, recTimer=null, recStart=0;
+  function setRecStatus(t){ recStatus.textContent=t; }
+  function startTimer(){ recStart=Date.now(); if(recTimer) clearInterval(recTimer); recTimer=setInterval(()=>{ const s=Math.floor((Date.now()-recStart)/1000); const mm=String(Math.floor(s/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); setRecStatus(`rec ${mm}:${ss}`); },250); }
+  function stopTimer(){ if(recTimer) clearInterval(recTimer); setRecStatus('idle'); }
+  async function startRecording(){ if(recording) return; recording=true; audioChunks=[]; recordBtn.textContent='■ Stop'; recordBtn.classList.add('recording'); setRecStatus('rec 00:00'); startTimer();
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const mime = 'audio/webm';
+    mediaRecorder = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 64000 });
+    mediaRecorder.ondataavailable=e=>{ if(e.data.size>0) audioChunks.push(e.data); };
+    mediaRecorder.onstop=async()=>{ try { const it=items[current]; const fd=new FormData(); fd.append('file', new Blob(audioChunks,{type:mediaRecorder.mimeType||'audio/webm'}), `note-${Date.now()}.webm`);
+      setRecStatus('uploading…'); const r=await fetch(`/api/audio/${it.id}`,{method:'POST',body:fd}); const data=await r.json(); setRecStatus('uploaded');
+      if (data && data.draft){ if(data.draft.title) fTitle.value=data.draft.title; if(data.draft.description) fDesc.value=data.draft.description; if(data.draft.category) fCategory.value=data.draft.category;
+        if(typeof data.draft.price!=='undefined') fPrice.value=data.draft.price; if(data.draft.price_type) fPriceType.value=data.draft.price_type; if(data.draft.type) fType.value=data.draft.type;
+        if(data.draft.shipping_type) fShipType.value=data.draft.shipping_type; if(typeof data.draft.shipping_costs!=='undefined') fShipCosts.value=data.draft.shipping_costs;
+        if(Array.isArray(data.draft.shipping_options)){ shipOptInputs().forEach(i=>i.checked=data.draft.shipping_options.includes(i.value)); }
+        if(typeof data.draft.sell_directly!=='undefined') fSellDirect.checked=!!data.draft.sell_directly;
+        if(data.draft.contact){ fCName.value=data.draft.contact.name||''; fCStreet.value=data.draft.contact.street||''; fCZip.value=data.draft.contact.zipcode||''; fCPhone.value=data.draft.contact.phone||''; }
+      }
+    } catch(e){ console.error(e); alert('Audio upload failed.'); } finally { stopTimer(); } };
+    mediaRecorder.start();
+  }
+  async function stopRecording(){
+    if(!recording) return;
+  recording=false;
+  recordBtn.textContent='● Record';
+  recordBtn.classList.remove('recording');
+  stopTimer(); // Stop the timer so status doesn't keep updating
+  mediaRecorder.stop();
+  }
+  recordBtn.addEventListener('click', async ()=>{ if(!recording) await startRecording(); else await stopRecording(); });
+
+  async function submit(){
+    const it = items[current];
+    // Validate title length
+    const titleValue = fTitle.value.trim();
+    if (titleValue.length < 10) {
+      alert('Title must be at least 10 characters long.');
+      fTitle.focus();
+      return;
+    }
+    // Respect visual order (source of truth = DOM)
+    updateOrderFromDom();
+    const selectionsArr = imageOrder
+      .filter(url => selections.has(url))
+      .map(url => ({ url, crop: selections.get(url).crop }));
+    if (selectionsArr.length === 0){ if(!confirm('No images selected. Continue?')) return; }
+    const shipOpts = shipOptInputs().filter(i=>i.checked).map(i=>i.value);
+    let spec = fSpecAttr.value.trim();
+    const md = {
+      type: fType.value, price_type: fPriceType.value, title: titleValue, description: fDesc.value.trim(), category: fCategory.value.trim(),
+      price: fPrice.value.trim(), republication_interval: fRepInt.value.trim(), shipping_type: fShipType.value,
+      shipping_costs: fShipType.value==='SHIPPING' && fShipCosts.value!=='' ? fShipCosts.value.trim() : '',
+      shipping_options: shipOpts, sell_directly: fSellDirect.checked,
+      contact: { name:fCName.value.trim(), street:fCStreet.value.trim(), zipcode:fCZip.value.trim(), phone:fCPhone.value.trim() },
+      special_attributes: spec
+    };
+    submitBtn.disabled=true; submitBtn.textContent='Submitting…';
+    try{
+      const r = await fetch(`/api/items/${it.id}/submit`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          metadata: md,
+          selections: selectionsArr,
+          image_order: imageOrder
+        })
+      });
+      const data = await r.json();
+      await refreshPending(); await archiveInfo();
+      if (data.nextItemId != null){ current = data.nextItemId; await loadItem(current); }
+      else { await refreshPending(); await archiveInfo(); openModal(); } // end -> prompt publish
+    } catch(e){ console.error(e); alert('Submit failed.'); }
+    finally { submitBtn.disabled=false; submitBtn.textContent='Submit & Next'; }
+  }
+  submitBtn.addEventListener('click', submit);
+  skipBtn.addEventListener('click', async ()=>{ if(current+1<items.length){ current+=1; await loadItem(current);} else { await refreshPending(); await archiveInfo(); openModal(); }});
+  document.getElementById('resetDraftBtn').addEventListener('click', resetDraftFields);
+
+  // Pending modal
+  function openModal(){ modal.classList.add('open'); }
+  function closeModalFn(){ modal.classList.remove('open'); }
+  closeModal.addEventListener('click', closeModalFn);
+  pendingBtn.addEventListener('click', async ()=>{ await refreshPending(); await archiveInfo(); openModal(); });
+
+  async function refreshPending(){
+    const r = await fetch('/api/pending'); const data = await r.json(); const items = data.pending || [];
+    pendingCount.textContent = String(items.length);
+    pendingList.innerHTML = items.length ? '' : '<div class="muted">No pending ads.</div>';
+    items.forEach(x=>{
+      const row = document.createElement('div'); row.className='row';
+      const left = document.createElement('div'); left.textContent = x.dir + (x.title ? ` — ${x.title}` : '');
+      const right = document.createElement('div'); right.className='row'; right.style.gap='8px'; right.style.alignItems='center';
+      const price = document.createElement('span'); price.className='muted'; price.textContent = (x.price!=null?`€${x.price}`:'');
+      const undo = document.createElement('button'); undo.title='Undo'; undo.textContent='↶'; undo.addEventListener('click', ()=> undoOne(x.dir));
+      right.appendChild(price); right.appendChild(undo);
+      row.appendChild(left); row.appendChild(right); pendingList.appendChild(row);
+    });
+  }
+
+  async function publishAll(){
+    publishAllBtn.disabled=true; publishAllBtn.textContent='Publishing…';
+    try{
+      const r = await fetch('/api/publish_all',{method:'POST'}); const data = await r.json();
+      if (!data.ok){ console.error(data.stderr || data); alert('Publish failed. Check logs.'); }
+      else { await refreshPending(); await archiveInfo(); alert('Publish finished.'); closeModalFn(); }
+    } catch(e){ console.error(e); alert('Publish failed.'); }
+    finally { publishAllBtn.disabled=false; publishAllBtn.textContent='Publish All Now'; }
+  }
+  publishAllBtn.addEventListener('click', publishAll);
+
+  function maybePromptPublishAtEnd(){
+    // If no items to process but pending exists, show modal on load
+    refreshPending().then(()=>{ if (Number(pendingCount.textContent)>0) openModal(); });
+  }
+
+  loadItems();
+  archiveInfo();
+
+  // If server started with --publish, auto publish at end (no dialog).
+  // We detect "end" as: zero items + has pending on load, or reaching last item submit.
+  (async function autoPublishIfFlag(){
+    const wantsAuto = false;
+    if (!wantsAuto) return;
+    // If there are no source items, but pending exists, publish immediately.
+    setTimeout(async ()=>{
+      if (Number(pendingCount.textContent)>0){
+        await publishAll();
+      }
+    }, 300);
+  })();
+})();
+</script>
+</body>
+</html>
