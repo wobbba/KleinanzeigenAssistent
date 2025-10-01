@@ -5,8 +5,10 @@
   <title>Kleinanzeigen Assistent</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <style>
-    :root { --bg:#0b0d10; --panel:#14181d; --muted:#77818f; --text:#e6edf3; --accent:#e8cb2d; --accent-2:#edd85e; --accent-text-color:#000; --danger:#ff6b6b; --ok:#27c93f; --card:#0f1317; --border:#232a33; }
+    :root { --bg:#0b0d10; --panel:#14181d; --muted:#77818f; --text:#e6edf3; --accent:#e8cb2d; --accent-2:#edd85e; --accent-text-color:#000; --danger:#ff6b6b; --ok:#27c93f; --card:#0f1317; --border:#232a33; --input-bg:#0e1318;}
+    :root.accessibility { --bg:#f0f1f2; --panel:#ffffff; --muted:#6c757d; --text:#212529; --accent:#0d6efd; --accent-2:#3d8bfd; --accent-text-color:#fff; --danger:#dc3545; --ok:#198754; --card:#ffffff; --border:#dee2e6; --input-bg:#ffffff;}
     *{box-sizing:border-box}
+    button, textarea, input {font-size:1em;}
     html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial}
     header{position:sticky;top:0;z-index:10;background:rgba(11,13,16,0.8);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);padding:12px 16px;display:grid;grid-template-columns:1fr auto;align-items:center;gap:16px}
     header .title{font-weight:600}
@@ -14,26 +16,28 @@
     .controls{display:flex;gap:8px;align-items:center}
     button{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer}
     button:hover{border-color:var(--muted)}
+    #recBtnDot{color:var(--danger);}
+    #recordBtn.recording #recBtnDot{color:#fff;}
     #recordBtn.recording{background:var(--danger);border-color:var(--danger);color:#fff}
     .btn-primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text-color)}
-    .pill{font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:999px}
+    .pill{font-size:0.9em;padding:4px 8px;border:1px solid var(--border);border-radius:999px}
     main{padding:16px;display:grid;grid-template-columns:1fr 380px;gap:16px}
     .grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(clamp(250px, 25vw, 400px), 1fr));gap:10px;align-content:start}
     .card{background:var(--card);border:1px solid var(--border);border-radius:6px;overflow:hidden;position:relative}
     .imgwrap{position:relative;width:100%;padding-top:100%;background:#0b0f14}
     .imgwrap img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0b0f14;user-select:none;-webkit-user-drag:none}
-    .check{display:none;position:absolute;top:8px;left:8px;z-index:2;background:rgba(0,0,0,0.5);padding:4px 6px;border-radius:8px;font-size:12px;color:#cfe3ff;border:1px solid var(--border)}
+    .check{display:none;position:absolute;top:8px;left:8px;z-index:2;background:rgba(0,0,0,0.5);padding:4px 6px;border-radius:8px;font-size:0.9em;color:#cfe3ff;border:1px solid var(--border)}
     .selected{outline:4px solid var(--accent);outline-offset:-2px}
     .overlay{position:absolute;inset:0;pointer-events:none}
     .crop{position:absolute;border:2px solid var(--accent-2);background: color-mix(in srgb, var(--accent-2), transparent 85%);border-radius:4px}
     aside{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px;position:sticky;top:60px;height:fit-content}
     aside h3{margin:0 0 8px;font-size:15px}
     .field{display:grid;gap:6px;margin-bottom:10px}
-    .field label{color:var(--muted);font-size:12px}
-    input[type="text"],input[type="number"],textarea,select{background:#0e1318;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;width:100%}
+    .field label{color:var(--muted);font-size:0.9em}
+    input[type="text"],input[type="number"],textarea,select{background:var(--input-bg);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;width:100%}
     textarea{resize:vertical;min-height:170px}
     .row{display:flex;gap:8px;align-items:center}
-    .muted{color:var(--muted);font-size:12px}
+    .muted{color:var(--muted);font-size:0.9em}
     .spacer{flex:1}
     .hr{height:1px;background:var(--border);margin:10px 0}
     .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -87,7 +91,7 @@
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
       <h2 style="margin:0;">Details</h2>
       <div class="row" style="gap:8px;align-items:center;">
-        <button id="recordBtn">● Record</button>
+        <button id="recordBtn"><span id="recBtnDot">●</span> Record</button>
         <span id="recStatus" class="pill muted">idle</span>
       </div>
     </div>
@@ -150,6 +154,17 @@
 
 <script>
 (function(){
+
+  async function initAccessibility(){
+    const accessibility_mode = await fetch('/api/config/accessibility').then(r=>r.json()).then(d=>d.accessibility);
+    if (accessibility_mode) {
+        document.documentElement.classList.toggle('accessibility');
+        document.body.style.fontSize = "150%";
+    }
+  }
+
+  initAccessibility();
+
   const grid = document.getElementById('grid');
   const hdrTitle = document.getElementById('hdrTitle');
   const hdrIndex = document.getElementById('hdrIndex');
@@ -398,7 +413,7 @@
   async function stopRecording(){
     if(!recording) return;
   recording=false;
-  recordBtn.textContent='● Record';
+  recordBtn.innerHTML='<span id="recBtnDot">●</span> Record';
   recordBtn.classList.remove('recording');
   stopTimer(); // Stop the timer so status doesn't keep updating
   mediaRecorder.stop();

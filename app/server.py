@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.common import ADS_ARCHIVE_DIR, ADS_DIR, INPUT_ARCHIVE_DIR, INPUT_DIR, AUDIO_DIR, KLEIN_LOG_PATH, KLEIN_LOG_PATH, ROOT_DIR
+from app.common import ADS_ARCHIVE_DIR, ADS_DIR, INPUT_ARCHIVE_DIR, INPUT_DIR, AUDIO_DIR, KLEIN_LOG_PATH, KLEIN_LOG_PATH, ROOT_DIR, get_cfg
 from app.datamodel import SubmitPayload, UndoPayload
 from app.helpers import _clear_dir_contents, _dir_size, _format_bytes, strip_silence_ffmpegpy
 from app.input import archive_input_folder, restore_input_for_rel
@@ -51,6 +51,13 @@ def api_item_images(item_id: int):
     it = item_by_id(item_id)
     imgs = list_images(it)
     return {"item": {"id": it.id, "name": it.name}, "images": [f"/media/{p}" for p in imgs]}
+
+# Return image URLs for a specific item
+@server.get("/api/config/accessibility")
+def api_config_accessibility():
+    return {
+        "accessibility": get_cfg("accessibility_mode")
+    }
 
 
 # Upload an audio file for an item, remove silences, and generate a draft
